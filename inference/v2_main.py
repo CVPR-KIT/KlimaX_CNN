@@ -27,7 +27,7 @@ from src.tc_support import (now_kst,clock_text,resolve_device,device_details,dev
                             inspect_observations,validate_outputs,record_tc8,PROTOCOL)
 from correction import apply_correction
 
-VERSION='2.0.0'
+VERSION='2.1.0'
 BUILD_DATE='2026-10-13'
 IMPORT_SECONDS=time.perf_counter()-ENTRY_PERF
 
@@ -85,6 +85,8 @@ def print_tc9(result,report):
 
 def run(args):
     whole_start=time.perf_counter()
+    mode=getattr(args,'mode','v2')
+    version=VERSION if mode=='v2' else '1.1.0'
     config_path=Path(args.config).resolve() if args.config else resolve('model_config.yaml',resources=True)
     cfg=yaml.safe_load(config_path.read_text(encoding='utf-8'))
     date=args.date or str(cfg['inference']['date'])
@@ -98,7 +100,7 @@ def run(args):
     paths=cfg['paths']
     raw=Path(args.input_dir).resolve() if args.input_dir else resolve(paths['input_dir'])
     base=Path(args.output_dir).resolve() if args.output_dir else resolve(paths['output_dir'])
-    output,index=reserve(base,'v2_'+first.strftime('%y%m%d_%H%M'))
+    output,index=reserve(base,mode+'_'+first.strftime('%y%m%d_%H%M'))
     log=output/'run_log.txt'
     def report(message):
         print(message,flush=True)
@@ -108,7 +110,8 @@ def run(args):
         device=device_details(selected)
         checkpoint=resolve(paths['checkpoint'],resources=True)
         section('[공통] 실행 정보 및 입력 확인',report)
-        report(f'[시작] V2 예측·평가 실행 | 첫 예측: {first:%Y-%m-%d %H:%M} | KlimaXv{VERSION} (빌드 {BUILD_DATE}) | 회차: run{index} | 시각 기준: KST')
+        operation='예측·평가' if mode=='v2' else '예측'
+        report(f'[시작] {mode.upper()} {operation} 실행 | 첫 예측: {first:%Y-%m-%d %H:%M} | KlimaXv{version} (빌드 {BUILD_DATE}) | 회차: run{index} | 시각 기준: KST')
         report(f'[버전확인] 체크포인트: {checkpoint.name} | 설정파일: {config_path} | checkpoint step 85140 / q0.6')
         report(device_line(device))
         report(f'[시각설정] 입력 종료시각 t0: {anchor:%Y-%m-%d %H:%M} | 예측 시각: {first:%H:%M}~{end:%H:%M} (t0+10~180분, 10분 간격 18개)')
@@ -116,7 +119,8 @@ def run(args):
         inspected=inspect_observations(raw,first)
         window=inspected['window_start']
         report(f"[입력 확인] 필요 관측 NC: {anchor:%Y-%m-%d} 00:10~{anchor:%H:%M} | {inspected['prefix_count']}/{inspected['prefix_count']}개 | 파일 결측 0개 | 10분 간격 연속")
-        report(f'[정답 평가자료범위] 평가 NC: {first:%Y-%m-%d %H:%M}~{end:%Y-%m-%d %H:%M} | 18개 | 예측 저장 및 TC8 측정 종료 후 읽음(예측에는 미사용)')
+        if mode=='v2':
+            report(f'[정답 평가자료범위] 평가 NC: {first:%Y-%m-%d %H:%M}~{end:%Y-%m-%d %H:%M} | 18개 | 예측 저장 및 TC8 측정 종료 후 읽음(예측에는 미사용)')
         section('[TC8] 예측 신속성 : 구동시간 측정',report)
         tc8_start_wall=now_kst();tc8_start=time.perf_counter()
         report('[TC8 측정 시작] '+clock_text(tc8_start_wall)+' KST (누적 NC -> 10분 강우 변환 직전)')
@@ -126,12 +130,15 @@ def run(args):
         negatives=int((fine<0).sum());nonfinite=int((~np.isfinite(fine)).sum())
         if fine.shape!=(6,1,100,100) or negatives or nonfinite: raise ValueError('모델 입력 격자 검수 실패')
         quality='이상 없음' if invalid==0 else f'변환 결측/이상 {invalid}개를 0 처리'
+        if mode=='v1':
+            report(f'[입력 완료] 모델 입력: {first-timedelta(minutes=60):%H:%M}~{anchor:%H:%M} | 1시간, 6개 시점')
+            report(f'[격자 검수] 100x100 입력 6개 | {quality} | 모델 입력 결측 {nonfinite} | 음수 {negatives}')
         report('[모델 실행] 모델 로딩 및 향후 3시간 18개 시점 예측 중')
         runtime=load_runtime(checkpoint,device=selected)
         original=predict(runtime,inputs['fine'],inputs['context'],inputs['valid'],inputs['clock'])
-        report('[보정] 예측 결과 보정 중 (고정 계수, 평가 NC 미사용)')
         profile=args.correction or cfg['inference']['correction']
-        if profile=='recommended': profile='recommended_2022_three_block_power'
+        if profile=='recommended': profile='shared_three_block_power_cap12'
+        report('[보정] '+profile+' 적용 중 (고정 계수, 평가 NC 미사용)')
         presets=resolve('presets.json',resources=True)
         corrected=apply_correction(original,profile,lead_axis=0,presets_path=presets)
         grid=resolve(paths['grid_dir'],resources=True)
@@ -151,7 +158,7 @@ def run(args):
         tc8_seconds=time.perf_counter()-tc8_start;tc8_end_wall=now_kst()
         report('[TC8 측정 종료] '+clock_text(tc8_end_wall)+' KST (필수 결과 생성 확인 직후)')
         report(f'[TC8 결과] 시작 {clock_text(tc8_start_wall)} | 종료 {clock_text(tc8_end_wall)} | 구동시간 {tc8_seconds:.3f}초 (기준 300초)')
-        signature=dict(first_forecast=first.isoformat(),checkpoint_sha256=runtime.checkpoint_sha256,
+        signature=dict(mode=mode,first_forecast=first.isoformat(),checkpoint_sha256=runtime.checkpoint_sha256,
                        profile=profile,presets_sha256=hashlib.sha256(presets.read_bytes()).hexdigest(),
                        config_sha256=hashlib.sha256(config_path.read_bytes()).hexdigest(),
                        input_sha256=hashlib.sha256(json.dumps(inputs['provenance']['consumed_files'],sort_keys=True).encode()).hexdigest(),
@@ -163,6 +170,20 @@ def run(args):
             report(f"[TC8 3회 평균] 동일 조건 최근 3회 평균 {tc8['mean_seconds']:.3f}초 | 기준 300초 이하 | {'통과' if tc8['passed'] else '미달'}")
         else:
             report(f"[TC8 판정 대기] 동일 조건 유효 실행 {tc8['used_count']}/3회 | 3회 평균으로 판정 (--repeat 3 사용 가능)")
+        if mode=='v1':
+            whole_seconds=time.perf_counter()-whole_start
+            meta=dict(mode=mode,version=version,build_date=BUILD_DATE,timezone='KST',run_number=index,
+                      checkpoint_step=85140,checkpoint_sha256=runtime.checkpoint_sha256,correction_profile=profile,
+                      first_forecast=first.isoformat(),input_provenance=inputs['provenance'],input_qc=inputs['input_qc'],
+                      future_observation_used=False,device=device,tc8=tc8,tc8_seconds=tc8_seconds,
+                      tc8_start=tc8_start_wall.isoformat(),tc8_end=tc8_end_wall.isoformat(),
+                      elapsed_seconds=whole_seconds,initial_import_seconds=IMPORT_SECONDS,
+                      accuracy=None,ascii_count=18,prj_count=18,png_count=18,graph_count=0,csv_count=0,
+                      output_validation=counts,config_file=str(config_path),run_log=str(log))
+            (output/'RUN_METADATA.json').write_text(json.dumps(meta,indent=2,ensure_ascii=False),encoding='utf-8')
+            section('실행 완료',report);report('[저장 위치] '+str(output))
+            report(f'[완료] 예측·저장·검수: {tc8_seconds:.3f}초 | 전체 처리: {whole_seconds:.3f}초 | 초기 로딩: {IMPORT_SECONDS:.3f}초 별도 | 정상 종료 (종료코드 0)')
+            return output
         section('[TC9] 예측 정확성 : 종합 강우예측 정확도 평가',report)
         tc9_start=time.perf_counter()
         report('[TC9 평가 시작] 평가 대상: 보정 후 예측 ASC 18개(asc_corrected) | TC8 측정 종료 후 수행(구동시간 미포함)')
@@ -211,7 +232,7 @@ def run(args):
         report('[실행 오류] '+str(error));report(traceback.format_exc());raise
 
 
-def main():
+def main(mode='v2'):
     for stream in (sys.stdout,sys.stderr):
         if hasattr(stream,'reconfigure'): stream.reconfigure(errors='replace')
     # Accept pasted Unicode dashes in options, but show canonical --time in docs.
@@ -219,10 +240,11 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config');parser.add_argument('--date');parser.add_argument('--time')
     parser.add_argument('--input-dir');parser.add_argument('--output-dir');parser.add_argument('--device')
-    parser.add_argument('--correction',choices=('recommended','raw','recommended_2022_three_block_power','comparison_2025_three_block_power'))
+    parser.add_argument('--correction',choices=('recommended','raw','shared_three_block_power_cap12','recommended_2022_three_block_power','comparison_2025_three_block_power'))
     parser.add_argument('--prompt-datetime',action='store_true');parser.add_argument('--no-pause',action='store_true')
     parser.add_argument('--repeat',type=int,choices=(1,3),default=1)
     args=parser.parse_args(argv)
+    args.mode=mode
     keep_open=getattr(sys,'frozen',False) and len(sys.argv)==1 and sys.stdin.isatty() and not args.no_pause
     try:
         for _ in range(args.repeat): run(args)

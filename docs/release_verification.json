@@ -1,0 +1,70 @@
+{
+  "status": "PASS",
+  "release": "V1.1.0 / V2.1.0, build 2026-10-13",
+  "correction_profile": "shared_three_block_power_cap12",
+  "cap_mm10": 12,
+  "unit_tests": 20,
+  "independent_source_and_frozen_review": "PASS",
+  "same_model_v1_v2": true,
+  "v1_v2_prediction_arrays_bitwise_equal": true,
+  "v1_v2_ASC_PRJ_PNG_byte_equal": true,
+  "v1_future_files_absent_test": true,
+  "user_output_folders_empty": true,
+  "cases": [
+    {
+      "mode": "v2",
+      "date": "20220808",
+      "time": "1600",
+      "tc8_seconds": 7.8745697,
+      "hits": 41,
+      "accuracy": 82.0,
+      "input_without_future": false
+    },
+    {
+      "mode": "v1",
+      "date": "20220808",
+      "time": "1600",
+      "tc8_seconds": 7.8070118,
+      "hits": null,
+      "accuracy": null,
+      "input_without_future": false
+    },
+    {
+      "mode": "v1",
+      "date": "20220808",
+      "time": "2010",
+      "tc8_seconds": 9.2383888,
+      "hits": null,
+      "accuracy": null,
+      "input_without_future": true
+    },
+    {
+      "mode": "v2",
+      "date": "20220808",
+      "time": "2010",
+      "tc8_seconds": 9.7261235,
+      "hits": 45,
+      "accuracy": 83.33333333333334,
+      "input_without_future": false
+    },
+    {
+      "mode": "v2",
+      "date": "20250813",
+      "time": "0810",
+      "tc8_seconds": 5.818796600000001,
+      "hits": 44,
+      "accuracy": 81.48148148148148,
+      "input_without_future": false
+    }
+  ],
+  "exe_sha256": {
+    "v1": "835063ae42119778dba382917958a199366d4da1eadd289459dbcd8ab6251d12",
+    "v2": "9881fd445946b4effb7979e618260a95085434ce86f24b4aa59cabda68498cfd"
+  },
+  "archive": {
+    "filename": "KlimaX_V1_V2_shared_cap12_20261013.zip",
+    "size_bytes": 5181906375,
+    "full_crc_verified": true
+  },
+  "interpretation": "Jointly fitted correction on two cases; station aggregate, not whole-field or unseen-date guarantee"
+}

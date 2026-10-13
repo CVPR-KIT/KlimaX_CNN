@@ -8,4 +8,4 @@ inference:
   # First forecast time. Inputs 1910..2000, predictions 2010..2300.
   time: '2010'
   device: cpu
-  correction: recommended
+  correction: shared_three_block_power_cap12

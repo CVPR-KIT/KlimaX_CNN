@@ -117,7 +117,7 @@ def record_tc8(output,signature,seconds,start,end):
                 started_at=start.isoformat(),ended_at=end.isoformat(),output=str(output))
     (output/'TC8.json').write_text(json.dumps(record,indent=2,ensure_ascii=False),encoding='utf-8')
     eligible=[]
-    for folder in output.parent.glob('v2_*'):
+    for folder in output.parent.glob(signature.get('mode','v2')+'_*'):
         path=folder/'TC8.json'
         if not path.is_file():
             continue

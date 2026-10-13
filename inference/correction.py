@@ -70,4 +70,9 @@ def apply_correction(prediction, profile="raw", *, lead_axis, presets_path=None)
             raise ValueError("Correction produced an out-of-range rain amount") from exc
     if not np.isfinite(result).all():
         raise ValueError("Correction produced a nonfinite rain amount")
+    cap = configuration.get("cap_mm10")
+    if cap is not None:
+        if isinstance(cap, bool) or not np.isfinite(float(cap)) or float(cap) <= 0:
+            raise ValueError("Correction cap must be a finite positive mm/10min value")
+        np.minimum(result, float(cap), out=result)
     return result

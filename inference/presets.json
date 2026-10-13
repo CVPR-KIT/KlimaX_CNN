@@ -1,17 +1,48 @@
 {
   "schema_version": 1,
-  "lead_minutes": [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180],
+  "lead_minutes": [
+    10,
+    20,
+    30,
+    40,
+    50,
+    60,
+    70,
+    80,
+    90,
+    100,
+    110,
+    120,
+    130,
+    140,
+    150,
+    160,
+    170,
+    180
+  ],
   "source": "v45_station_time_search_20261010/corrected_fine_maps/MANIFEST.json",
   "profiles": {
-    "raw": {"method": "raw", "label": "원본 유지"},
+    "raw": {
+      "method": "raw",
+      "label": "원본 유지"
+    },
     "recommended_2022_three_block_power": {
       "method": "three_block_power",
       "label": "2022 사례 추천: 3구간 거듭제곱",
       "scope": "Fixed coefficients fitted in-sample to 20220808 r120; not validated for other dates.",
       "blocks": [
-        {"gain": 2.4060500721642337, "gamma": 0.8500000000000001},
-        {"gain": 2.7638257599355525, "gamma": 1.0},
-        {"gain": 3.819366415641665, "gamma": 1.0}
+        {
+          "gain": 2.4060500721642337,
+          "gamma": 0.8500000000000001
+        },
+        {
+          "gain": 2.7638257599355525,
+          "gamma": 1.0
+        },
+        {
+          "gain": 3.819366415641665,
+          "gamma": 1.0
+        }
       ]
     },
     "recommended_2025_raw": {
@@ -23,10 +54,39 @@
       "label": "2025 사례 비교용: 3구간 거듭제곱 (추천 아님)",
       "scope": "Fixed in-sample coefficients for 20250813 r48; whole-map MAE worsened. Comparison only.",
       "blocks": [
-        {"gain": 1.2599210498948732, "gamma": 1.0},
-        {"gain": 1.0472941228206267, "gamma": 0.6},
-        {"gain": 0.9548416039104166, "gamma": 1.0}
+        {
+          "gain": 1.2599210498948732,
+          "gamma": 1.0
+        },
+        {
+          "gain": 1.0472941228206267,
+          "gamma": 0.6
+        },
+        {
+          "gain": 0.9548416039104166,
+          "gamma": 1.0
+        }
       ]
+    },
+    "shared_three_block_power_cap12": {
+      "method": "three_block_power",
+      "label": "Shared 3-block power + 12 mm/10min cap",
+      "scope": "Jointly fitted to 20220808 2010 and 20250813 0810; in-sample, not independent validation.",
+      "blocks": [
+        {
+          "gain": 1.8004940607863256,
+          "gamma": 1.1000000000000008
+        },
+        {
+          "gain": 2.183793013939788,
+          "gamma": 1.280000000000001
+        },
+        {
+          "gain": 3.538025187345249,
+          "gamma": 2.880000000000002
+        }
+      ],
+      "cap_mm10": 12
     }
   }
 }

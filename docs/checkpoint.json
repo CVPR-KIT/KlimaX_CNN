@@ -15,5 +15,5 @@
     0.9,
     0.95
   ],
-  "default_correction": "recommended_2022_three_block_power"
+  "default_correction": "shared_three_block_power_cap12"
 }

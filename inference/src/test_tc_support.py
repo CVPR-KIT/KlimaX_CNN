@@ -7,6 +7,21 @@ from src.tc_support import record_tc8
 
 
 class TimingTests(unittest.TestCase):
+    def test_v1_repeat_average_and_v2_history_are_separate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            first=datetime(2026,10,13,tzinfo=timezone(timedelta(hours=9)))
+            for i,seconds in enumerate((8.,10.,12.),1):
+                folder=root/f'v1_case_run{i}';folder.mkdir()
+                result=record_tc8(folder,{'mode':'v1','model':'same'},seconds,first,first+timedelta(seconds=seconds))
+            self.assertTrue(result['complete'])
+            self.assertEqual(result['used_count'],3)
+            self.assertEqual(result['mean_seconds'],10.)
+            other=root/'v2_case';other.mkdir()
+            result=record_tc8(other,{'mode':'v2','model':'same'},9.,first,first+timedelta(seconds=9))
+            self.assertFalse(result['complete'])
+            self.assertEqual(result['used_count'],1)
+
     def test_only_three_matching_conditions_receive_a_verdict(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory)
