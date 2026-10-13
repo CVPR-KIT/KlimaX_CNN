@@ -1,0 +1,9 @@
+# Tested inference environment: Python 3.9.25, torch 2.2.2+cu121.
+# Install PyTorch separately as described in README.md.
+numpy==1.26.4
+scipy==1.13.1
+netCDF4==1.7.2
+cftime==1.6.4.post1
+pyproj==3.6.1
+PyYAML==6.0.3
+Pillow==11.3.0

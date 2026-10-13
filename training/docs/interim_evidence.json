@@ -1,0 +1,45 @@
+{
+  "status": "interim; full 20-epoch training incomplete",
+  "quality_accepted": false,
+  "operational_checks": {
+    "smoke_budget": true,
+    "same_source": true,
+    "same_seed": true,
+    "same_inputs": true,
+    "strict_reload": true,
+    "checkpoint_bound": true,
+    "gradients": true,
+    "occurrence_gradient": true,
+    "exact_first_batch": true,
+    "restored_forward": true
+  },
+  "validation": [
+    {
+      "step": 8514,
+      "utc": "2026-10-08T04:32:44Z",
+      "n_windows": 815,
+      "csi_global": 0.37519218777229313,
+      "csi_global_threshold_0p5": 0.31888501894897925,
+      "csi_late120_180_threshold_0p5": 0.19871359268365785,
+      "selection_score": 0.29759693313497676
+    },
+    {
+      "step": 17028,
+      "utc": "2026-10-08T06:09:50Z",
+      "n_windows": 815,
+      "csi_global": 0.3592434576625969,
+      "csi_global_threshold_0p5": 0.2533006482861185,
+      "csi_late120_180_threshold_0p5": 0.1318448544515498,
+      "selection_score": 0.24812965346675506
+    },
+    {
+      "step": 25542,
+      "utc": "2026-10-08T07:46:50Z",
+      "n_windows": 815,
+      "csi_global": 0.37086537119630025,
+      "csi_global_threshold_0p5": 0.28466433462771623,
+      "csi_late120_180_threshold_0p5": 0.18419936450826177,
+      "selection_score": 0.27990969011075945
+    }
+  ]
+}

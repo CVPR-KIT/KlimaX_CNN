@@ -1,0 +1,11 @@
+paths:
+  checkpoint: saved_model.ckpt
+  input_dir: input/nc_raw
+  grid_dir: input/data_10m_v45
+  output_dir: output
+inference:
+  date: '20220808'
+  # First forecast time. Inputs 1910..2000, predictions 2010..2300.
+  time: '2010'
+  device: cpu
+  correction: recommended

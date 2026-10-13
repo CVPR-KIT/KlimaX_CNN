@@ -1,0 +1,5 @@
+# Observed direct runtime versions. Install the CUDA torch wheel separately (README).
+torch==2.0.1
+numpy==1.26.4
+pytorch-lightning==1.9.5
+torchmetrics==0.11.4

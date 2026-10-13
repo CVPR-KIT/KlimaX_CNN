@@ -1,0 +1,28 @@
+{
+  "origin": "frozen V45 experiment source snapshot",
+  "original_source_sha256": {
+    "ClimaX/src/climax/__init__.py": "2aaea2f11d6e105be6fe2fb02cfe41aee610dc3f5b0861606fcacb1b7c1921dd",
+    "ClimaX/src/climax/regional_forecast/motion_core_arch.py": "1b73e39e5ff605bce6560dd42cb98e5cddbfad3072c69b94d2810c58085d01e5",
+    "ClimaX/src/climax/utils/lr_scheduler.py": "885a88baabcfdb115d97831414fdc5a57a10d077911106cd36fb5e085cdf2914",
+    "experiments/scripts/train_v45.py": "1ca83f672fa4cae03c7bb13de494a0d746be7af2e1937eee01812ffafc1b4728",
+    "experiments/scripts/train_v44_module.py": "f5b62162ae31ade291c061bc7d0b5592c9e1a98401d9c9f2e3d2163c097fee58",
+    "experiments/scripts/train_v39.py": "90bc0ab0d5fc7a6dc8177ac95a11dc55f039d8e32490a664ae4b7071f7849b13",
+    "experiments/scripts/data_v39.py": "51ede80a9e1f0ccd5f31d68c1478a16f7a6decb08f51a7cd38157e6567e313d5",
+    "experiments/scripts/birth_sampling.py": "f785fb860f1488c7053e83e38c3e6ffa7befba230a261bd7310bdbda50c311f7",
+    "experiments/scripts/birth_objective.py": "31ad0627114725f59d2d56dcbf741fdf107ad69e322e7b40132eafac8d8c4daf",
+    "experiments/scripts/test_loss.py": "82748708fd4e145bd7d820fec743bcad0b790373907787944edcbec1d9ee1bb8"
+  },
+  "publication_edits": {
+    "experiments/scripts/train_v45.py": "Require explicit --root instead of a private server default; computation unchanged.",
+    "experiments/scripts/train_v39.py": "Require explicit --root instead of a private server default; computation unchanged. Replace obsolete standalone experiment module description.",
+    "ClimaX/src/climax/regional_forecast/__init__.py": "Preserve Microsoft MIT notice and add package description."
+  },
+  "omitted": [
+    "data",
+    "checkpoints",
+    "private launch scripts",
+    "host details",
+    "unrelated experiments"
+  ],
+  "text_normalization": "Copied runtime files use UTF-8 and LF; byte hashes may differ due to line endings even where computation is unchanged."
+}
