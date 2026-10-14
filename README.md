@@ -4,10 +4,23 @@
 
 모델은 CNN·ConvGRU·강우 패턴 이동을 결합해 처음부터 학습한 구조입니다. Microsoft ClimaX Transformer의 사전학습 가중치를 미세조정한 모델은 아닙니다. 상세한 구조는 [MODEL.md](docs/MODEL.md), 학습 재현 절차는 [training/README.md](training/README.md)를 참고하세요.
 
+## 원본 데이터부터 학습·추론까지 실행
+
+**지원 형식의 원본 NC만 별도로 준비하면**, 저장소 코드로 전처리·품질검사·새 모델 학습·체크포인트 선정·V1/V2 추론까지 실행할 수 있습니다. 새 경로는 [END_TO_END.md](docs/END_TO_END.md)에 설치부터 명령·입출력·검증 방법까지 정리했습니다.
+
+```powershell
+python pipeline.py prepare --raw-dir data/raw_nc --out work/dataset --train-dates 20220802 --val-dates 20220809
+python pipeline.py train --data-dir work/dataset --out work/model --epochs 20 --batch-size 8 --device cuda:0
+python pipeline.py predict --config work/model/inference_config.yaml --date 20220809 --time 1600
+python pipeline.py evaluate --config work/model/inference_config.yaml --date 20220809 --time 1600
+```
+
+먼저 문서의 환경 설치와 짧은 CPU 학습 검사를 수행하세요. 이 날짜는 실행 예시입니다. 최종 성능 평가는 학습·검증에 사용하지 않은 날짜로 수행합니다. 새 runner는 원래 데이터 수에 고정되지 않은 scratch 학습용이며, 과거 실험의 정확한 표본 추출이나 중단 재개·미세조정을 제공하지는 않습니다. 새 모델 설정은 보정 없음이 기본입니다. 원본·생성 데이터와 추가 학습 가중치는 Git에서 제외됩니다.
+
 ## 다른 지점 처리와 추가 학습
 
 - **3개 지점 외 처리:** 모델은 약 50×50km의 100×100 격자 전체를 예측합니다. 현재 영역 안의 다른 지점값도 지도에서 조회할 수 있습니다. 다만 V2의 자동 평가·표·그래프는 AWS 410·418·889로 고정되어 있어, 추가 지점을 평가하려면 좌표 설정과 평가·집계·그래프 코드를 함께 수정해야 합니다. 다른 지역·전국에 적용하는 기능은 현재 검증되지 않았습니다.
-- **학습:** `training/`에 학습 소스를 제공합니다. 실제 데이터·감사 manifest·sampling index는 별도 준비가 필요하며, 현재 runner는 원래 데이터 규모와 설정을 검사합니다. V1·V2 EXE에는 학습 기능이 없습니다. 재학습 모델을 배포하려면 새 checkpoint 검증, 로더 계약 갱신 및 EXE 재빌드가 필요합니다.
+- **학습:** `pipeline.py prepare`가 데이터와 감사 manifest를 만들고 `pipeline.py train`이 새 모델을 학습합니다. 새 checkpoint는 생성한 계약 파일을 명시적으로 검증해 source 추론에 연결합니다. 기존 V1·V2 EXE에는 학습 기능이 없으며 새 기능을 EXE에 반영하려면 재빌드가 필요합니다.
 
 단계별 준비 사항과 현재 지원 범위는 [적용 범위와 추가 학습 안내](docs/CAPABILITIES.md)를 참고하세요.
 
@@ -21,7 +34,8 @@
 | 추론 출력 | q0.6, `float32`, `[18,100,100]`, mm/10분 |
 | 분위수 | 0.5, 0.6, 0.75, 0.9, 0.95 |
 | 파라미터 수 | 446,047 |
-| 실행 프로그램 | V1.1.0 예측 전용 / V2.1.0 예측·평가, 빌드 2026-10-13 |
+| 소스 실행 프로그램 | V1.2.0 예측 전용 / V2.2.0 예측·평가, 새 학습 모델 계약 지원 |
+| 기존 배포 EXE | V1.1.0 / V2.1.0, 빌드 2026-10-13; 이번 소스 변경으로 자동 갱신되지 않음 |
 | 기본 장치 | CPU, CUDA는 명시적으로 지정 |
 
 전체 학습의 마지막 step과 선택된 checkpoint step은 다릅니다. `inference/saved_model.ckpt`는 실제 배포본과 동일하며, 로더가 SHA-256·step·모델 state를 엄격히 확인합니다.
@@ -37,6 +51,8 @@ fb7e43c65c38493efdec4f4a4af9649ec7f8149cf0a80f0e9cd552777faae755
 ```text
 KlimaX_New/
 ├─ README.md
+├─ pipeline.py                          전처리·학습·예측·평가 공통 진입점
+├─ requirements-pipeline.txt            새 전체 경로 실행 의존성
 ├─ requirements-inference.txt           검증된 추론 의존성
 ├─ docs/
 │  ├─ MODEL.md                         모델 구조와 시간 조건
@@ -241,6 +257,6 @@ Copy-Item input/data_10m_v45/lat.npy,input/data_10m_v45/lon.npy dist/V2/input/da
 
 ## 학습 코드와 라이선스
 
-`training/`은 공개용으로 정리한 최소 학습 의존 코드입니다. 데이터와 원본 감사 manifest·sampling index는 별도 준비해야 하며, 임의의 소규모 데이터로 곧바로 실행되는 범용 trainer는 아닙니다. 재학습하면 다른 체크포인트가 생성되므로 현재 고정 SHA·step 검사를 사용하는 배포 로더를 그대로 통과할 수 없습니다.
+`training/prepare_data.py`와 `training/train_pipeline.py`는 지원하는 원본 NC에서 임의 규모의 감사 완료 데이터셋과 새 모델을 만드는 경로입니다. 생성 모델은 hash·step·구조·좌표를 담은 계약 파일로 추론 로더에서 검증합니다. 원래 감사 manifest·sampling index와 데이터는 포함하지 않으며, 원래 규모·설정으로 고정된 역사적 `train_v45.py`도 별도로 보존합니다. 자세한 내용은 [전체 실행 안내](docs/END_TO_END.md)에 있습니다.
 
 Microsoft 유래 코드의 MIT 고지는 `training/LICENSE.climax`에 유지합니다. 새 프로젝트 코드 전체의 별도 라이선스는 지정하지 않았습니다.

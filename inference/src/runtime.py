@@ -1,6 +1,7 @@
 """Strict, Lightning-free inference for the frozen V45 H6 checkpoint."""
 from dataclasses import dataclass
 import hashlib
+import json
 import os
 from pathlib import Path
 import pathlib
@@ -45,15 +46,52 @@ class Runtime:
     global_step: int
 
 
-def load_runtime(path, device="cpu"):
-    """Load only the exact reviewed checkpoint; CPU FP32 is the default."""
+def read_model_contract(path):
+    """Explicit opt-in to a locally trained V45 artifact, never an unchecked override."""
+    contract = json.loads(Path(path).read_text(encoding="utf-8"))
+    expected = dict(schema="klimax_v45_model_contract_v1", history_steps=6,
+                    forecast_steps=18, quantiles=list(QUANTILES), hidden=48,
+                    fine_hidden=32, fine_birth_enabled=True,
+                    fine_correction_cap=20.0, fine_readout_floor=0.05,
+                    preprocess_version="rn_day_method4c_reset_v3_qc_400km")
+    for key, value in expected.items():
+        if contract.get(key) != value:
+            raise ValueError("Unsupported model contract field: " + key)
+    digest = contract.get("checkpoint_sha256", "")
+    if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+        raise ValueError("Invalid model contract checkpoint_sha256")
+    step = contract.get("global_step")
+    if type(step) is not int or step < 1:
+        raise ValueError("Invalid model contract global_step")
+    grids = contract.get("grid_sha256", {})
+    if not isinstance(grids, dict) or set(grids) != {"lat.npy", "lon.npy"}:
+        raise ValueError("Model contract requires both coordinate hashes")
+    for digest in grids.values():
+        if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+            raise ValueError("Invalid model contract coordinate hash")
+    return contract
+
+
+def validate_contract_grid(contract_path, grid_dir):
+    contract = read_model_contract(contract_path)
+    for name, expected in contract["grid_sha256"].items():
+        actual = hashlib.sha256((Path(grid_dir) / name).read_bytes()).hexdigest()
+        if actual != expected:
+            raise ValueError("Model contract coordinate SHA256 mismatch: " + name)
+
+
+def load_runtime(path, device="cpu", contract_path=None):
+    """Default frozen checkpoint or an explicitly supplied, hash-bound local artifact."""
+    contract = read_model_contract(contract_path) if contract_path else None
+    expected_sha = contract["checkpoint_sha256"] if contract else CHECKPOINT_SHA256
+    expected_step = contract["global_step"] if contract else CHECKPOINT_STEP
     path = Path(path)
     digest = hashlib.sha256()
     with path.open("rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(block)
     checksum = digest.hexdigest()
-    if checksum != CHECKPOINT_SHA256:
+    if checksum != expected_sha:
         raise ValueError("V45 checkpoint SHA256 mismatch: " + checksum)
     if device == "auto":
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -65,8 +103,10 @@ def load_runtime(path, device="cpu"):
     if device.type == "cpu":
         torch.set_num_threads(2)
     checkpoint = load_checkpoint(path)
-    step = int(checkpoint.get("global_step", -1))
-    if step != CHECKPOINT_STEP:
+    step = checkpoint.get("global_step", -1)
+    if type(step) is not int:
+        raise ValueError("Checkpoint global_step must be an integer")
+    if step != expected_step:
         raise ValueError("Unexpected V45 checkpoint step: " + str(step))
     state = checkpoint["state_dict"]
     if not state or any(not key.startswith("net.") for key in state):

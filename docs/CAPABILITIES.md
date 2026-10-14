@@ -26,7 +26,23 @@ PNG는 상세 500m 예측 지도이며 ASC는 EPSG:3857의 1km 평균 격자, �
 
 다른 지역에 적용할 때 좌표 파일만 교체하면 안 됩니다. 현재 crop은 고정이며 학습된 위치 파라미터도 있습니다. 새 지역의 좌표·데이터 기하와 모델 입력을 함께 맞추고 별도 성능 검증이 필요합니다.
 
-## 2. 이 모델을 다시 학습할 수 있나요?
+## 2. 최신 저장소에서 전처리부터 학습할 수 있나요?
+
+**지원하는 원본 NC만 별도로 준비하면 가능합니다.** 2026-10-14에 전처리·품질검사·새 모델 학습·계약 생성·추론 연결을 추가했습니다. 설치와 실제 단계별 명령은 [END_TO_END.md](END_TO_END.md)에 있습니다.
+
+| 단계 | 최신 Git 소스 |
+|---|---|
+| 원본 NC → 일별 NPZ·좌표·검사 manifest | `pipeline.py prepare` |
+| 임의 규모의 검사 완료 자료로 scratch 학습 | `pipeline.py train` |
+| 검증 지표에 따른 가중치 선정·계약 생성 | 학습 결과 `best.ckpt`, `model_contract.json`, `inference_config.yaml` |
+| 새 모델 예측·저장 | `pipeline.py predict --config ...` |
+| 예측 저장 후 정답 평가 | `pipeline.py evaluate --config ...` |
+
+새 경로는 데이터·생성 결과를 Git에 포함하지 않으며 원래 실험과 다른 표본 추출·학습 예산을 사용합니다. resume와 fine-tuning은 미지원입니다. 다른 지역 적용, 추가 평가 지점 및 예측 성능 보장은 1절의 범위와 별도로 검증해야 합니다. 기존 배포 EXE는 자동 갱신되지 않습니다.
+
+## 3. 보존한 역사적 학습 runner와의 차이
+
+**아래 제약은 과거 `train_v45.py` 경로의 설명입니다.** 새 `train_pipeline.py` 경로에는 데이터 규모·seed·epoch 고정 검사가 없고, `prepare_data.py`가 새 manifest·index를 생성하며, 생성한 모델 계약으로 source 추론에 연결할 수 있습니다.
 
 **모델 구조는 학습 가능하며 학습 소스를 제공합니다.** [training/](../training/README.md)에 모델·데이터 loader·손실·optimizer·학습 runner가 있습니다. 그러나 **배포 V1·V2 EXE에는 학습 기능이 없고**, 저장소를 내려받는 것만으로 새 데이터 학습이 바로 실행되지는 않습니다.
 
@@ -43,9 +59,9 @@ PNG는 상세 500m 예측 지도이며 ASC는 EPSG:3857의 1km 평균 격자, �
 | 감사 manifest | 날짜별 train/val 분리와 사용 가능한 window 목록 |
 | sampling index | 학습 window별 날짜·기준 시점·표본 가중치 |
 
-실제 데이터, 원래 manifest·index 및 이를 만드는 전체 전처리·감사 도구는 이 저장소에 포함하지 않습니다. 단순히 누적 NC를 학습 폴더에 넣는 것으로 위 형식이 준비되지 않습니다. 정확한 데이터 계약은 [DATA.md](../training/docs/DATA.md)에 있습니다.
+실제 데이터와 원래 manifest·index는 이 저장소에 포함하지 않습니다. 새 `prepare_data.py`가 별도의 감사 자료를 생성하며 원래 birth index를 재현했다고 주장하지 않습니다. 단순히 누적 NC를 학습 폴더에 넣는 것으로 위 형식이 준비되지 않습니다. 정확한 데이터 계약은 [DATA.md](../training/docs/DATA.md)에 있습니다.
 
-### 학습부터 새 EXE 배포까지
+### 역사적 runner 학습부터 EXE 배포까지
 
 1. **데이터 준비:** 단위·시간·좌표·전처리를 통일해 일별 NPZ를 만들고 학습/검증 날짜를 분리합니다. 정답과 누적 NC 차분의 관계, 결측·음수 처리 및 상세/광역 정렬을 검사합니다.
 2. **manifest·index 준비:** 검증된 window 목록과 sampling index를 생성합니다. `audit_pass`를 임의로 true로 적는 것은 데이터 검증을 대신하지 않습니다.
@@ -54,7 +70,7 @@ PNG는 상세 500m 예측 지도이며 ASC는 EPSG:3857의 1km 평균 격자, �
 5. **짧은 학습 확인:** `--mode smoke`로 8 update를 실행해 기울기·입력·복원·분위수 순서를 확인합니다. 현재 공개 소스의 위치에서 새 기록을 생성해야 합니다.
 6. **본학습:** `--mode prepare`로 준비 기록을 만들고 `--mode train`으로 학습합니다. 원래 데이터 계약을 그대로 사용하는 명령은 학습 README에 있습니다. 다른 데이터에서는 3단계의 변경과 재검증을 먼저 완료합니다.
 7. **checkpoint 선정:** 독립 검증 데이터의 성능으로 모델을 선택합니다. 현재 runner는 CSI 0.1·CSI 0.5·장기 리드 CSI 0.5를 결합해 선택하며, 이는 배포 TC9의 3지점 적중률과 다른 지표입니다. `DONE.json`의 `best_path`를 확인합니다.
-8. **추론 연동:** [runtime.py](../inference/src/runtime.py)는 현재 checkpoint의 SHA-256과 step 85,140을 고정 검사합니다. 새 가중치로 파일만 바꾸면 로딩 오류가 납니다. 새 모델의 구조·입력 계약·state 복원을 검증한 뒤 허용 checkpoint 정보와 문서를 갱신해야 합니다.
+8. **추론 연동:** [runtime.py](../inference/src/runtime.py)의 기본 경로는 현재 checkpoint의 SHA-256과 step 85,140을 고정 검사합니다. 새 가중치로 파일만 바꾸면 로딩 오류가 납니다. 최신 source는 새 runner가 생성한 명시적 모델 계약으로 새 hash·step·좌표를 검증하는 별도 경로도 지원합니다. 역사적 runner의 파일을 수동 연결할 때는 새 모델의 구조·입력 계약·state 복원을 먼저 검증해야 합니다.
 9. **보정 및 독립 평가:** 새 모델에는 기존 power 계수가 적합하다고 가정하지 않습니다. 보정 선정과 최종 평가 데이터를 분리하고 강우 강도별·전체 지도 성능도 확인합니다. 최종 평가 정답으로 계수를 선택하면 독립 성능 검증이 아닙니다.
 10. **재배포:** 새 checkpoint로 source와 frozen EXE의 결과 일치를 확인하고 V1·V2를 재빌드합니다. 저장 파일·시간 정렬·품질관리·평가 분모를 검증한 뒤 버전과 설명을 갱신합니다.
 

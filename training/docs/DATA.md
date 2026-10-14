@@ -1,6 +1,6 @@
 # 데이터 계약
 
-데이터를 배포하지 않습니다. 전처리 전체 파이프라인과 원래 감사 manifest/index의 생성 도구도 이 최소 패키지에는 포함하지 않습니다. 아래는 loader가 요구하는 형식이며, 새 데이터의 감사를 대신하지 않습니다.
+데이터를 배포하지 않습니다. 새 [전체 실행 경로](../../docs/END_TO_END.md)의 `prepare_data.py`가 지원 원본 NC에서 이 형식의 NPZ, 실제 품질검사 manifest와 중립 sampling index를 생성합니다. 원래 학습 데이터·감사 manifest·birth index는 배포하지 않습니다. 아래는 loader가 요구하는 형식이며, 임의로 작성한 manifest가 실제 검사를 대신하지 않습니다.
 
 ## 일별 NPZ
 

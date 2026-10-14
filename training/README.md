@@ -1,5 +1,13 @@
 # V45 학습 소스 — 1시간 입력으로 3시간 강우 예측
 
+## 원본 데이터만 별도로 준비하는 새 실행 경로
+
+`prepare_data.py`가 원본 누적 NC에서 학습 NPZ·품질검사 manifest·좌표를 만들고, `train_pipeline.py`가 임의 규모의 검사 완료 자료로 scratch 학습합니다. 생성 checkpoint·계약·설정으로 V1/V2 추론까지 연결됩니다. 저장소 루트의 `pipeline.py`에서 각 단계를 실행할 수 있습니다.
+
+설치와 전체 명령은 [END_TO_END.md](../docs/END_TO_END.md)를 따르세요. 새 runner는 CPU/CUDA, batch·epoch·seed 변경을 지원합니다. 과거 고정 규모 runner를 변경한 것이 아니라 새로운 실행 경로입니다. uniform 표본 추출과 상세 CSI 기반 검증을 사용하며 역사적 학습의 정확한 재현, resume, fine-tuning을 제공하지 않습니다.
+
+아래 설명은 **보존한 역사적 `train_v45.py` 경로**입니다. 새 데이터에는 위 새 경로를 사용합니다.
+
 이 디렉터리는 V45의 모델·학습 runner·손실·데이터 loader 코드입니다. 체크포인트, 실제 데이터셋 및 예측 산출물은 포함하지 않습니다. 명령은 저장소 루트에서 `cd training` 후 실행합니다. 배포 EXE와 예측 후 강우량 보정은 상위 디렉터리의 추론 패키지에서 다룹니다.
 
 최근 V45 학습 방식의 소스와 실행 절차입니다. 10분 간격 강우 6개 프레임을 입력해 +10~180분의 18개 시점을 예측합니다. 사전학습 가중치 없이 처음부터 학습하는 `MotionCoreNowcaster` 기반 실험이며, ClimaX Transformer를 직접 미세조정하는 방식은 아닙니다.

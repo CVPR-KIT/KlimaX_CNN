@@ -7,6 +7,7 @@ import numpy as np
 from pyproj import Geod, Transformer
 
 from src.nc_input import _read_raw, _source_path, _sha256
+from src.raw_contract import read_raw_strict
 
 
 def read_ascii(path):
@@ -102,7 +103,7 @@ def _geometry(header, lat, lon, stations):
     return cell_ids, count, mapping
 
 
-def evaluate_tc9(raw_root, first, ascii_dir, lat, lon, stations):
+def evaluate_tc9(raw_root, first, ascii_dir, lat, lon, stations, strict_qc=False):
     result = dict(status='unavailable', criterion='abs_error <= max(1.0 mm/10min, truth*0.5)',
                   unit='mm/10min', prediction_source='Saved prediction ASC (mm/h divided by 6)',
                   truth_source='Unsmoothed raw NC intervals, mean over matching 1 km native contributions',
@@ -123,7 +124,8 @@ def evaluate_tc9(raw_root, first, ascii_dir, lat, lon, stations):
             header = current_header
             predictions.append(values)
         ids, counts, mapping = _geometry(header, lat, lon, stations)
-        cumulative = {stamp: _read_raw(path)[350:450,350:450] for stamp,path in sources.items()}
+        cumulative = {stamp: (read_raw_strict(path,stamp)[0] if strict_qc else _read_raw(path))[350:450,350:450]
+                      for stamp,path in sources.items()}
         provenance = [dict(timestamp=stamp.isoformat(), filename=path.name,sha256=_sha256(path))
                       for stamp,path in sources.items()]
         records = [dict(station_id=m['station_id'],name=m['name'],rows=[]) for m in mapping]

@@ -1,0 +1,10 @@
+# End-to-end CPU verification: Python 3.11, torch 2.13.0+cpu.
+# Install the appropriate CPU/CUDA PyTorch wheel separately, then this file.
+numpy==1.26.3
+scipy==1.16.2
+netCDF4==1.7.4
+pyproj==3.7.2
+PyYAML==6.0.2
+Pillow==10.2.0
+pytorch-lightning==1.9.5
+torchmetrics==0.11.4

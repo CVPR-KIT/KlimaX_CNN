@@ -1,5 +1,27 @@
 # 작업 기록
 
+## 2026-10-14 — 원본 NC부터 학습·추론까지 실행 경로 추가
+
+- 요청: 데이터 제외, Git 파일만으로 전처리·학습·추론을 실행하도록 구현·설명·업로드.
+- 새 prepare_data.py: 원시 일누적 NC 143개/일 검사, Method4C 변환, NPZ·좌표·QC manifest·중립 index·hash 기록. 날짜 분리, frame0 제외, 영역 밖·결측 마스크 유지.
+- 새 train_pipeline.py: 임의 규모 자료로 V45 구조·손실 scratch 학습, CPU/CUDA 옵션, 실제 역전파, validation CSI 선정, portable 가중치와 새 모델 계약·추론 설정 생성. 역사적 고정 규모 runner는 보존. uniform sampler·새 학습 예산으로 원래 학습을 정확히 재현했다고 주장하지 않음.
+- 독립 검수 발견·수정: 결측 뒤 구간의 학습/추론 마스크 차이를 공유 raw_contract.py와 v3 QC 버전으로 통일. 새 모델 입력·평가 strict NC reader 적용; 기존 배포 모델의 기본 전처리와 hash 계약 유지. 불완전 v2 smoke는 중단하고 v3로 다시 생성, 부분 출력은 로컬 보존.
+- 새 모델 계약으로 SHA·실제 step·구조·전처리·좌표 검증. source V1.2.0/V2.2.0이며 기존 ZIP·EXE는 변경하지 않음. 새 가중치에는 raw 보정 기본.
+- 실제 원시 자료 20220802 학습/20220809 검증, 각 120개 승인 window. CPU 갱신1회+명시적 제한 검증2window 후 새 가중치로 첫예측20220809 16:00, V1/V2 정상 종료. ASC/PRJ/PNG 각18개, V2그래프18개·CSV4개; V1/V2 저장파일 바이트 동일, 학습/추론 실제 입력 배열 동일.
+- 실행 검증은 모델 품질 검증이 아님. 기본 본학습은 전체 검증, --smoke-val-windows는 --max-steps일 때만 허용하고 제한 범위를 기록. CUDA 본학습·새 모델의 독립 예측 성능은 이번 실행에서 검증하지 않음.
+- 별도 엔진 Claude 읽기 전용 검수에서 학습/검증 분리·q0.6·SHA/step·strict 복원·CPU portability PASS. loader 채널 차원과 V2 좌표 검증 호출은 별도 코드/실행 확인했으며 검증 score 계산에 shape 일치 검사도 보강.
+- Claude 전처리·공유 raw 계약 검수도 PASS. 기존 배포 checkpoint 직접 모델 비교 최대오차0 확인; 무config 새 모델 CLI의 raw 기본 및 정상저장 실제 확인.
+- 전체 실행 안내 END_TO_END.md, README·학습/DATA/MODEL/적용 범위 설명 갱신. 데이터·생성 가중치·결과·개인 경로는 업로드 제외. 정량·검증 요약 docs/PIPELINE_VALIDATION.json.
+
+## 2026-10-14 — V45 실제 학습 날짜 확인
+
+- 서버7 원본 실행의 `train20/config.json`, `READY.json`, `data/history6_manifest.json`, 전처리·감사 코드 및 실제 NPZ를 읽기 전용으로 확인했다.
+- 원본 manifest SHA-256 `a6c440510fa2c6638bb99a9f7af7e573fe8c24cb33064952b1dd86a80167fc4e`는 학습 config와 READY에 일치했다. 원본 선택 checkpoint SHA-256 `fb7e43c65c38493efdec4f4a4af9649ec7f8149cf0a80f0e9cd552777faae755`는 로컬 배포 기록과 일치했다.
+- 학습 후보는 1997~2023년 매년 5월15일~10월15일의 4,155일이다. 실제 사용은 2,835일·90,823 window이며 첫 사용일은 1997-05-16, 마지막은 2023-10-15다. 검증은 2024년 같은 계절 후보154일 중147일·815 window다. 365일 전체 학습이 아니다.
+- 비 오는 날짜만 선별하지 않았다. 품질 감사 후 입력 무강우 window를 결정적 hash로 약75% 유지했고, H6 manifest는 부모 감사 window를 추가 제한했다. 사용 일수는 최소1개 window가 채택된 날짜 수이며 하루 전체 사용을 뜻하지 않는다.
+- 실제 사용 파일2,982개의 존재를 확인했고 학습·검증 NPZ 각1개를 열어 shape·dtype를 확인했다. 독립 에이전트는 과거 기록의 모델 연결과 loader 해석을 검수했다.
+- 상세 월별 집계와 근거 경로: `../verification/V45_TRAINING_DATA_SCOPE_20261014.json` (작업공간 상위의 verification). 기존 설명의 1997~2025 전체 원본 기간과 V45의 실제 선별 학습 기간을 구분한다.
+
 ## 2026-10-14 — 적용 범위와 재학습 설명
 
 - 요청: GitHub에 3지점 외 처리 가능 여부와 학습 가능성을 설명.

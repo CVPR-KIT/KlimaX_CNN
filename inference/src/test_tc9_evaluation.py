@@ -64,6 +64,25 @@ class TC9Tests(unittest.TestCase):
         with (folder/'excluded.csv').open(encoding='utf-8-sig') as stream:
             self.assertEqual(len(list(csv.DictReader(stream))),0)
 
+    def test_new_contract_truth_uses_strict_reader_and_excludes_missing(self):
+        anchor=self.first-timedelta(minutes=10)
+        clean=self.evaluate()
+        position=(clean['mapping'][0]['native_row']+350,clean['mapping'][0]['native_col']+350)
+        def strict(path,stamp):
+            index=int((stamp-anchor).total_seconds()/600)
+            array=np.full((800,800),index+10.,dtype=np.float32)
+            if index==1: array[position]=np.nan
+            return array,np.isfinite(array)
+        with patch('src.tc9_evaluation._source_path',side_effect=lambda root,t:root/f'{t:%Y%m%d%H%M}.nc'),\
+             patch('src.tc9_evaluation.read_raw_strict',side_effect=strict) as reader,\
+             patch('src.tc9_evaluation._read_raw',side_effect=AssertionError('Legacy reader used')),\
+             patch('src.tc9_evaluation._sha256',return_value='verified'):
+            result=evaluate_tc9(self.root,self.first,self.ascii,self.lat,self.lon,self.stations,strict_qc=True)
+        self.assertEqual(result['status'],'available',result.get('reason'))
+        self.assertEqual(reader.call_count,19)
+        self.assertTrue(result['rows'][0]['rows'][0]['excluded'])
+        self.assertTrue(result['rows'][0]['rows'][1]['excluded'])
+
     def test_negative_and_missing_native_contributions_excluded(self):
         clean=self.evaluate()
         # Each station's native nearest cell contributes to its mapped mean cell.

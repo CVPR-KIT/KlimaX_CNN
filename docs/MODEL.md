@@ -178,7 +178,7 @@ clock[18] = 23:00
 SHA-256: fb7e43c65c38493efdec4f4a4af9649ec7f8149cf0a80f0e9cd552777faae755
 ```
 
-모델을 evaluation 모드와 float32로 설정하고, 추론은 `torch.inference_mode()`에서 실행합니다. 기본 장치는 CPU이며 GPU는 옵션으로 지정합니다. 재학습한 새로운 파일은 이 고정 해시·step 계약을 자동으로 통과하지 않습니다.
+모델을 evaluation 모드와 float32로 설정하고, 추론은 `torch.inference_mode()`에서 실행합니다. 기본 장치는 CPU이며 GPU는 옵션으로 지정합니다. 재학습한 새로운 파일은 이 고정 해시·step 계약을 자동으로 통과하지 않습니다. 최신 source에서는 새 runner가 생성한 `model_contract.json`을 명시적으로 지정해 새 가중치 hash·step·구조·좌표를 검증할 수 있습니다. [전체 실행 안내](END_TO_END.md)에 전처리부터 연결 절차를 설명합니다.
 
 ## 7. 단계 5 — 관측의 유효 영역과 인접 이동을 추정한다
 

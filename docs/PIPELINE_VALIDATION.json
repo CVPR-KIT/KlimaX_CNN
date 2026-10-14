@@ -1,0 +1,76 @@
+{
+  "status": "PASS",
+  "verification_date_kst": "2026-10-14",
+  "scope": "End-to-end execution and data consistency, not predictive-quality acceptance",
+  "environment": {
+    "os": "Windows",
+    "python": "3.11",
+    "torch": "2.13.0+cpu",
+    "lightning": "1.9.5",
+    "training_device": "cpu"
+  },
+  "preprocess_version": "rn_day_method4c_reset_v3_qc_400km",
+  "actual_raw_data": {
+    "product": "SFC_GRID_rn_day_",
+    "train_dates": ["20220802"],
+    "val_dates": ["20220809"],
+    "raw_files_consumed": 286,
+    "time_per_day": "00:10..23:50, 143 files, structural 00:00 excluded",
+    "train_windows": 120,
+    "val_windows": 120,
+    "minimum_fine_known_fraction": 0.95,
+    "minimum_context_known_fraction": 0.5,
+    "coordinate_basis": "Header-derived spherical KMA LCC; no external coordinate data required"
+  },
+  "training_smoke": {
+    "completed_steps": 1,
+    "selected_step": 1,
+    "nonzero_gradients": true,
+    "evaluated_val_windows": 2,
+    "selection_scope": "limited_smoke_only",
+    "full_validation_completed": false,
+    "independent_predictive_quality_verified": false
+  },
+  "actual_source_inference": {
+    "first_forecast": "2022-08-09 16:00 KST",
+    "input_window": "15:00..15:50",
+    "forecast_window": "16:00..18:50",
+    "v1_exit_code": 0,
+    "v2_exit_code": 0,
+    "checkpoint_step": 1,
+    "correction": "raw",
+    "each_mode_files": {"asc": 18, "prj": 18, "png": 18},
+    "v2_graphs": 18,
+    "v2_csv": 4,
+    "v2_valid_evaluation_pairs": 54,
+    "v1_v2_asc_prj_png_byte_equal": true,
+    "actual_training_inference_fine_context_valid_array_equal": true
+  },
+  "tests": {
+    "preprocessing": {"passed": 8, "failed": 0},
+    "training_pipeline": {"passed": 6, "failed": 0},
+    "inference": {"passed": 22, "failed": 0},
+    "total_passed": 36,
+    "gap_and_positive_missing_sentinel_train_inference_array_equal": true,
+    "trained_module_runtime_q06_equal": true,
+    "default_frozen_loader_rejects_new_weights_without_contract": true,
+    "checkpoint_and_grid_tamper_rejected": true
+  },
+  "review": {
+    "independent_preprocessing_review": "PASS after shared strict-QC correction",
+    "independent_training_runtime_review": "PASS",
+    "different_engine_claude_training_runtime_review": "PASS, read-only review of trainer and explicit artifact loader",
+    "different_engine_claude_preprocessing_review": "PASS, read-only review of prepare_data and raw_contract",
+    "existing_frozen_checkpoint_direct_module_max_abs_error": 0.0,
+    "frozen_default_preprocessing_retained": true
+  },
+  "limitations": [
+    "CPU short-run verification only, CUDA full training not executed here",
+    "One training update and two validation windows do not establish predictive performance",
+    "Evaluation date was part of this smoke validation split, not an independent holdout",
+    "Generic runner does not exactly reproduce historical sampling or training budget",
+    "Header-derived coordinates may differ slightly from the official coordinate product",
+    "Existing distributed EXE ZIP was not rebuilt",
+    "Raw data, prepared datasets, generated training weights and prediction outputs excluded from Git"
+  ]
+}

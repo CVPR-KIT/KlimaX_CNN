@@ -1,4 +1,4 @@
-"""KlimaX V2.0.0 measured TC8 / saved-ASCII TC9 workflow."""
+"""KlimaX measured TC8 / saved-ASCII TC9, frozen or explicit trained artifact."""
 import time
 ENTRY_PERF=time.perf_counter()
 import argparse
@@ -18,7 +18,7 @@ APP=Path(sys.executable).resolve().parent if getattr(sys,'frozen',False) else Pa
 RES=Path(getattr(sys,'_MEIPASS',APP))
 sys.path.insert(0,str(RES/'src'))
 from src.nc_input import prepare_input
-from src.runtime import load_runtime,predict
+from src.runtime import load_runtime,predict,read_model_contract,validate_contract_grid
 from src.ascii_export import export_predictions
 from src.png_export import export_pngs
 from src.tc9_evaluation import evaluate_tc9,write_tc9_tables
@@ -27,8 +27,8 @@ from src.tc_support import (now_kst,clock_text,resolve_device,device_details,dev
                             inspect_observations,validate_outputs,record_tc8,PROTOCOL)
 from correction import apply_correction
 
-VERSION='2.1.0'
-BUILD_DATE='2026-10-13'
+VERSION='2.2.0'
+BUILD_DATE='2026-10-14'
 IMPORT_SECONDS=time.perf_counter()-ENTRY_PERF
 
 
@@ -86,7 +86,7 @@ def print_tc9(result,report):
 def run(args):
     whole_start=time.perf_counter()
     mode=getattr(args,'mode','v2')
-    version=VERSION if mode=='v2' else '1.1.0'
+    version=VERSION if mode=='v2' else '1.2.0'
     config_path=Path(args.config).resolve() if args.config else resolve('model_config.yaml',resources=True)
     cfg=yaml.safe_load(config_path.read_text(encoding='utf-8'))
     date=args.date or str(cfg['inference']['date'])
@@ -108,11 +108,15 @@ def run(args):
     try:
         selected=resolve_device(args.device or cfg['inference']['device'])
         device=device_details(selected)
-        checkpoint=resolve(paths['checkpoint'],resources=True)
+        checkpoint=Path(args.checkpoint).resolve() if getattr(args,'checkpoint',None) else resolve(paths['checkpoint'],resources=True)
+        contract_text=getattr(args,'model_contract',None) or paths.get('model_contract')
+        contract=Path(contract_text).resolve() if getattr(args,'model_contract',None) else (resolve(contract_text,resources=True) if contract_text else None)
+        expected_step=read_model_contract(contract)['global_step'] if contract else 85140
         section('[공통] 실행 정보 및 입력 확인',report)
         operation='예측·평가' if mode=='v2' else '예측'
         report(f'[시작] {mode.upper()} {operation} 실행 | 첫 예측: {first:%Y-%m-%d %H:%M} | KlimaXv{version} (빌드 {BUILD_DATE}) | 회차: run{index} | 시각 기준: KST')
-        report(f'[버전확인] 체크포인트: {checkpoint.name} | 설정파일: {config_path} | checkpoint step 85140 / q0.6')
+        report(f'[버전확인] 체크포인트: {checkpoint.name} | 설정파일: {config_path} | checkpoint step {expected_step} / q0.6')
+        if contract: report('[모델 계약] '+str(contract)+' | 사용자 학습 모델, 기존 배포 성능 보장 없음')
         report(device_line(device))
         report(f'[시각설정] 입력 종료시각 t0: {anchor:%Y-%m-%d %H:%M} | 예측 시각: {first:%H:%M}~{end:%H:%M} (t0+10~180분, 10분 간격 18개)')
         report('[저장 위치] '+str(output));report('[실행 로그] '+str(log));report('[입력 폴더] '+str(raw))
@@ -125,7 +129,7 @@ def run(args):
         tc8_start_wall=now_kst();tc8_start=time.perf_counter()
         report('[TC8 측정 시작] '+clock_text(tc8_start_wall)+' KST (누적 NC -> 10분 강우 변환 직전)')
         converted=output/'converted_input'
-        inputs=prepare_input(raw,first,converted/'nc',converted/'npz')
+        inputs=prepare_input(raw,first,converted/'nc',converted/'npz',strict_qc=bool(contract))
         fine=inputs['fine'];invalid=sum(r['invalid_pixels'] for r in inputs['input_qc'])
         negatives=int((fine<0).sum());nonfinite=int((~np.isfinite(fine)).sum())
         if fine.shape!=(6,1,100,100) or negatives or nonfinite: raise ValueError('모델 입력 격자 검수 실패')
@@ -134,14 +138,16 @@ def run(args):
             report(f'[입력 완료] 모델 입력: {first-timedelta(minutes=60):%H:%M}~{anchor:%H:%M} | 1시간, 6개 시점')
             report(f'[격자 검수] 100x100 입력 6개 | {quality} | 모델 입력 결측 {nonfinite} | 음수 {negatives}')
         report('[모델 실행] 모델 로딩 및 향후 3시간 18개 시점 예측 중')
-        runtime=load_runtime(checkpoint,device=selected)
+        runtime=load_runtime(checkpoint,device=selected,contract_path=contract)
         original=predict(runtime,inputs['fine'],inputs['context'],inputs['valid'],inputs['clock'])
-        profile=args.correction or cfg['inference']['correction']
+        profile=args.correction or cfg['inference'].get('correction','raw' if contract else 'shared_three_block_power_cap12')
+        if contract and not args.config and not args.correction: profile='raw'
         if profile=='recommended': profile='shared_three_block_power_cap12'
         report('[보정] '+profile+' 적용 중 (고정 계수, 평가 NC 미사용)')
         presets=resolve('presets.json',resources=True)
         corrected=apply_correction(original,profile,lead_axis=0,presets_path=presets)
-        grid=resolve(paths['grid_dir'],resources=True)
+        grid=Path(args.grid_dir).resolve() if getattr(args,'grid_dir',None) else resolve(paths['grid_dir'],resources=True)
+        if contract: validate_contract_grid(contract,grid)
         lat,lon=np.load(grid/'lat.npy'),np.load(grid/'lon.npy')
         report('[결과 정리] ASC·PRJ·보정 PNG 저장 중')
         # Preserve the exporter, grid and values; V2 only changes the directory name.
@@ -150,7 +156,7 @@ def run(args):
         ascii_dir=asc_corrected
         png_dir=export_pngs(corrected,output,first)
         np.savez_compressed(output/'prediction_arrays.npz',original_mm10=original,corrected_mm10=corrected,
-                            profile=profile,date=date,first_forecast=clock,quantile=.6,step=85140)
+                            profile=profile,date=date,first_forecast=clock,quantile=.6,step=runtime.global_step)
         report(f'[예측 저장 완료] ASC: {ascii_dir} | PRJ: {ascii_dir} | PNG: {png_dir}')
         counts=validate_outputs(ascii_dir,png_dir,first)
         report('[생성 확인] ASC 18/18 | PRJ 18/18 | PNG 18/18 | 누락 0 · 중복 0 · 시간순서 정상 · 파일 읽기 정상 | 정상 생성률: 100.0% (18/18)')
@@ -159,6 +165,7 @@ def run(args):
         report('[TC8 측정 종료] '+clock_text(tc8_end_wall)+' KST (필수 결과 생성 확인 직후)')
         report(f'[TC8 결과] 시작 {clock_text(tc8_start_wall)} | 종료 {clock_text(tc8_end_wall)} | 구동시간 {tc8_seconds:.3f}초 (기준 300초)')
         signature=dict(mode=mode,first_forecast=first.isoformat(),checkpoint_sha256=runtime.checkpoint_sha256,
+                       preprocess_version=inputs['provenance']['version'],
                        profile=profile,presets_sha256=hashlib.sha256(presets.read_bytes()).hexdigest(),
                        config_sha256=hashlib.sha256(config_path.read_bytes()).hexdigest(),
                        input_sha256=hashlib.sha256(json.dumps(inputs['provenance']['consumed_files'],sort_keys=True).encode()).hexdigest(),
@@ -173,7 +180,7 @@ def run(args):
         if mode=='v1':
             whole_seconds=time.perf_counter()-whole_start
             meta=dict(mode=mode,version=version,build_date=BUILD_DATE,timezone='KST',run_number=index,
-                      checkpoint_step=85140,checkpoint_sha256=runtime.checkpoint_sha256,correction_profile=profile,
+                      checkpoint_step=runtime.global_step,checkpoint_sha256=runtime.checkpoint_sha256,correction_profile=profile,
                       first_forecast=first.isoformat(),input_provenance=inputs['provenance'],input_qc=inputs['input_qc'],
                       future_observation_used=False,device=device,tc8=tc8,tc8_seconds=tc8_seconds,
                       tc8_start=tc8_start_wall.isoformat(),tc8_end=tc8_end_wall.isoformat(),
@@ -189,7 +196,7 @@ def run(args):
         report('[TC9 평가 시작] 평가 대상: 보정 후 예측 ASC 18개(asc_corrected) | TC8 측정 종료 후 수행(구동시간 미포함)')
         report('[기준자료정답확인] 평가 NC 18개 시점 확인 및 차분 계산 중')
         stations=json.loads(resolve('stations_tc.json',resources=True).read_text(encoding='utf-8'))
-        accuracy=evaluate_tc9(raw,first,ascii_dir,lat,lon,stations)
+        accuracy=evaluate_tc9(raw,first,ascii_dir,lat,lon,stations,strict_qc=bool(contract))
         table_dir=write_tc9_tables(accuracy,output)
         graph_dir=None
         if accuracy['status']=='available':
@@ -216,7 +223,7 @@ def run(args):
         tc9_seconds=time.perf_counter()-tc9_start
         whole_seconds=time.perf_counter()-whole_start
         meta=dict(mode='v2',version=VERSION,build_date=BUILD_DATE,timezone='KST',run_number=index,
-                  checkpoint_step=85140,checkpoint_sha256=runtime.checkpoint_sha256,correction_profile=profile,
+                  checkpoint_step=runtime.global_step,checkpoint_sha256=runtime.checkpoint_sha256,correction_profile=profile,
                   first_forecast=first.isoformat(),input_provenance=inputs['provenance'],input_qc=inputs['input_qc'],
                   future_observation_used=False,device=device,tc8=tc8,tc8_seconds=tc8_seconds,
                   tc8_start=tc8_start_wall.isoformat(),tc8_end=tc8_end_wall.isoformat(),tc9_seconds=tc9_seconds,
@@ -234,12 +241,13 @@ def run(args):
 
 def main(mode='v2'):
     for stream in (sys.stdout,sys.stderr):
-        if hasattr(stream,'reconfigure'): stream.reconfigure(errors='replace')
+        if hasattr(stream,'reconfigure'): stream.reconfigure(encoding='utf-8',errors='replace')
     # Accept pasted Unicode dashes in options, but show canonical --time in docs.
     argv=[('--'+a[1:]) if a.startswith(('—','–')) else a for a in sys.argv[1:]]
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config');parser.add_argument('--date');parser.add_argument('--time')
     parser.add_argument('--input-dir');parser.add_argument('--output-dir');parser.add_argument('--device')
+    parser.add_argument('--checkpoint');parser.add_argument('--model-contract');parser.add_argument('--grid-dir')
     parser.add_argument('--correction',choices=('recommended','raw','shared_three_block_power_cap12','recommended_2022_three_block_power','comparison_2025_three_block_power'))
     parser.add_argument('--prompt-datetime',action='store_true');parser.add_argument('--no-pause',action='store_true')
     parser.add_argument('--repeat',type=int,choices=(1,3),default=1)

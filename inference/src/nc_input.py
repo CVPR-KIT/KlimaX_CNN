@@ -12,6 +12,7 @@ from pathlib import Path
 
 import numpy as np
 from preprocess_v27 import ResetSafeMethod4C, VERSION
+from raw_contract import QC_VERSION, read_raw_strict, mask_interval
 
 Y0, X0, SIZE = 1046, 648, 800
 
@@ -71,7 +72,7 @@ def _convert(rain):
     return fine.astype(np.float32), context, valid
 
 
-def _save_nc(path, timestamp, fine, context, valid):
+def _save_nc(path, timestamp, fine, context, valid, version=VERSION):
     import netCDF4
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(path.name + '.%s.tmp' % os.getpid())
@@ -90,12 +91,12 @@ def _save_nc(path, timestamp, fine, context, valid):
         coverage[:] = valid
         coverage.units = 'valid native pixel fraction times 255'
         nc.timestamp = timestamp.isoformat()
-        nc.preprocessing = VERSION
+        nc.preprocessing = version
         nc.orientation = 'raw NC row increases northward; no transpose or flip'
     os.replace(temporary, path)
 
 
-def prepare_input(raw_root, first_forecast, converted_nc_dir, converted_npz_dir, progress=None):
+def prepare_input(raw_root, first_forecast, converted_nc_dir, converted_npz_dir, progress=None, strict_qc=False):
     """Return channel-first numpy fine/context/valid H6 and clock19 arrays.
 
     ``first_forecast`` is the first OUTPUT timestamp, not the observation anchor.
@@ -115,13 +116,21 @@ def prepare_input(raw_root, first_forecast, converted_nc_dir, converted_npz_dir,
     sources = [(day + dt.timedelta(minutes=10 * i), _source_path(root, day + dt.timedelta(minutes=10 * i)))
                for i in range(1, reference + 1)]
     processor = ResetSafeMethod4C()
+    previous_finite = None
+    version = QC_VERSION if strict_qc else VERSION
     fine_frames, context_frames, valid_frames, input_times = [], [], [], []
     provenance = []
     input_qc = []
     for index, (timestamp, path) in enumerate(sources, 1):
         source_hash = _sha256(path)
-        cumulative = _read_raw(path)
+        if strict_qc:
+            cumulative, finite = read_raw_strict(path, timestamp)
+        else:
+            cumulative = _read_raw(path)
         rain = processor.update(cumulative, timestamp)
+        if strict_qc:
+            rain = mask_interval(rain, finite, previous_finite)
+            previous_finite = finite
         provenance.append(dict(timestamp=timestamp.isoformat(), filename=path.name, sha256=source_hash))
         if index >= reference - 5:
             raw_fine = np.where(rain <= 500, rain, np.nan)[350:450, 350:450]
@@ -132,10 +141,10 @@ def prepare_input(raw_root, first_forecast, converted_nc_dir, converted_npz_dir,
             context_frames.append(context)
             valid_frames.append(valid)
             input_times.append(timestamp)
-            _save_nc(Path(converted_nc_dir) / timestamp.strftime('%Y%m%d%H%M.nc'), timestamp, fine, context, valid)
+            _save_nc(Path(converted_nc_dir) / timestamp.strftime('%Y%m%d%H%M.nc'), timestamp, fine, context, valid, version=version)
         if progress:
             progress(index, reference, timestamp)
-    metadata = dict(version=VERSION, raw_unit='0.1mm cumulative since daily reset', unit='mm/10min',
+    metadata = dict(version=version, raw_unit='0.1mm cumulative since daily reset', unit='mm/10min',
                     anchor=anchor.isoformat(), first_forecast=first_forecast.isoformat(),
                     frame0='unavailable; not a valid model input', consumed_files=provenance,
                     window_native=[Y0, X0, SIZE, SIZE], fine_native=[350, 450, 350, 450],
